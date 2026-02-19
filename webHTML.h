@@ -88,11 +88,13 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
   <body>
     <h1>ESP32-CAM Robot</h1>
     <img src="" id="photo" >
+    
     <table>
       <tr><td colspan="3" align="center"><button class="button" onmousedown="toggleCheckbox('forward');" ontouchstart="toggleCheckbox('forward');">Forward</button></td></tr>
       <tr><td align="center"><button class="button" onmousedown="toggleCheckbox('left');" ontouchstart="toggleCheckbox('left');" >Left</button></td><td align="center"><button class="button" onmousedown="toggleCheckbox('stop');" ontouchstart="toggleCheckbox('stop');">Stop</button></td><td align="center"><button class="button" onmousedown="toggleCheckbox('right');" ontouchstart="toggleCheckbox('right');" >Right</button></td></tr>
       <tr><td colspan="3" align="center"><button class="button" onmousedown="toggleCheckbox('backward');" ontouchstart="toggleCheckbox('backward');" >Backward</button></td></tr>
-      <tr><td colspan="3" align="center"><button class="button" onmousedown="toggleCheckbox('auto');" ontouchstart="toggleCheckbox('auto');" >Automatic</button></td></tr>                   
+      <tr><td colspan="3" align="center"><button class="button" onmousedown="toggleCheckbox('auto');" ontouchstart="toggleCheckbox('auto');" >Automatic</button></td></tr>                               
+      <tr><td colspan="3" align="center"><button class="button" onmousedown="toggleCheckbox('video');" ontouchstart="toggleCheckbox('video');" >Toggle Video</button></td></tr>                               
     </table>
     <p>Status: <span id="status">-</span></p>
     <p>Auto: <span id="autostatus">-</span></p>
@@ -104,25 +106,30 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
    function toggleCheckbox(x) {
      var xhr = new XMLHttpRequest();
      xhr.open("GET", "/action?go=" + x, true);
+     console.log("button clikced");
      xhr.send();
    }
-   window.onload = document.getElementById("photo").src = window.location.href.slice(0, -1) + ":81/stream";
+   window.onload = function () {
+  const host = window.location.hostname;
+  document.getElementById("photo").src = "http://" + host + ":81/stream";
+};
   
 if (!!window.EventSource) {
   var source = new EventSource('/events');
 
-  source.addEventListener('message', function(e) {
-    // e.data is a JSON string, same as mecmode
-    try {
-      const data = JSON.parse(e.data);
-      document.getElementById('status').textContent = data.status;
-      document.getElementById('autostatus').textContent = data.autostatus;
-      document.getElementById('range').textContent = data.range;
-      document.getElementById('volts').textContent = data.volts;
-    } catch (err) {
-      console.error('Bad SSE JSON', err);
-    }
-  }, false);
+  setInterval(async () => {
+  try {
+    const res = await fetch('/status');
+    const data = await res.json();
+    document.getElementById('status').textContent = data.status;
+    document.getElementById('autostatus').textContent = data.autostatus;
+    document.getElementById('range').textContent = data.range;
+    document.getElementById('volts').textContent = data.volts;
+  } catch (e) {
+    console.error('Status poll failed', e);
+  }
+}, 500);
+
 
   source.addEventListener('open', function(e) {
     console.log("Events Connected");
@@ -136,6 +143,7 @@ if (!!window.EventSource) {
 } else {
   console.error("SSE not supported in this browser");
 }
+
 </script>
   </body>
   

@@ -21,6 +21,8 @@
 #include "web.h"
 
 
+extern String mecmode;
+
 
 // Define the RX and TX pins for Serial 2
 #define RXD2 12
@@ -38,7 +40,7 @@ const int ledFlash =4;
 HardwareSerial picoSerial(2);
 
 String mecmode = "{\"status\":\"u\",\"autostatus\":\"u\",\"range\":0,\"volts\":0}";
-String lastMecmodeSent = "";
+
 
 void toggleLED(){
   ledState = !ledState;
@@ -108,24 +110,21 @@ void setup() {
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
-  config.pixel_format = PIXFORMAT_JPEG; 
-  
-  if(psramFound()){
-    config.frame_size = FRAMESIZE_VGA;
-    config.jpeg_quality = 10;
-    config.fb_count = 2;
-  } else {
-    config.frame_size = FRAMESIZE_SVGA;
-    config.jpeg_quality = 12;
-    config.fb_count = 1;
-  }
+  config.pixel_format = PIXFORMAT_GRAYSCALE; //PIXFORMAT_JPEG; 
+  config.frame_size   = FRAMESIZE_QVGA;      // 320x240 if this i changed edit linedetect out array
+  config.grab_mode    = CAMERA_GRAB_LATEST;
+  config.fb_location  = CAMERA_FB_IN_PSRAM;
+  config.jpeg_quality = 15;                  // JPEG quality used later
+  config.fb_count     = 1;
   
   // Camera init
+  
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
     Serial.printf("Camera init failed with error 0x%x", err);
     return;
   }
+  
   /*
    * // Wi-Fi connection
   WiFi.begin(ssid, password);
@@ -162,7 +161,7 @@ void loop() {
       ledFlashState=!ledFlashState;
       digitalWrite(ledFlash, ledFlashState);
       // need to decode message
-      mecmode = message;
+      if (message !="")mecmode = message;
       
       
     }
