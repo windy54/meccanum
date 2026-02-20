@@ -1,5 +1,7 @@
 
 #include "webHTML.h"
+#include "video.h"
+#include <ArduinoJson.h>
 
 extern String mecmode;
 String lastMecmodeSent;
@@ -16,6 +18,26 @@ httpd_handle_t camera_httpd = NULL;
 httpd_handle_t stream_httpd = NULL;
 
 bool rawMode = true;
+int lineCentre= 0;
+
+void addLineCentre(int value) {
+  StaticJsonDocument<128> doc;
+
+  // Parse existing JSON
+  DeserializationError err = deserializeJson(doc, mecmode);
+  if (err) {
+    Serial.print("JSON parse failed: ");
+    Serial.println(err.c_str());
+    return;
+  }
+
+  // Add numeric field
+  doc["linecentre"] = value;
+
+  // Serialize back to String
+  mecmode = "";
+  serializeJson(doc, mecmode);
+}
 
  /*
  * code for OTA
@@ -26,6 +48,7 @@ typedef struct {
   size_t received;
   bool started;
 } ota_upload_ctx_t;
+
 static ota_upload_ctx_t ota_ctx;
 
 
@@ -248,6 +271,16 @@ static esp_err_t stream_handler(httpd_req_t *req){
       Serial.println("Camera capture failed");
       res = ESP_FAIL;
     } else {
+        // Run edge detection in-place
+        if (!rawMode){
+          char lbuf[5];
+          
+          lineCentre = fb->width/2 - detectLineEdges(fb);
+          addLineCentre(lineCentre);
+          sprintf(lbuf,"j%d\n",lineCentre);
+          //Serial.print(lbuf);
+          picoSerial.println(lbuf);
+        }
       if (fb->format != PIXFORMAT_JPEG) {
         // Non‑JPEG: convert
         if (!frame2jpg(fb, 80, &_jpg_buf, &_jpg_buf_len)) {

@@ -100,6 +100,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     <p>Auto: <span id="autostatus">-</span></p>
     <p>Range: <span id="range">-</span></p>
     <p>Volts: <span id="volts">-</span></p>
+    <p>LineCentre: <span id="linecentre">-</span></p>
     
     
    <script>
@@ -125,6 +126,7 @@ if (!!window.EventSource) {
     document.getElementById('autostatus').textContent = data.autostatus;
     document.getElementById('range').textContent = data.range;
     document.getElementById('volts').textContent = data.volts;
+    document.getElementById('linecentre').textContent = data.linecentre;
   } catch (e) {
     console.error('Status poll failed', e);
   }

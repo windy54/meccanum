@@ -21,6 +21,7 @@
 #include "web.h"
 
 
+
 extern String mecmode;
 
 
@@ -74,7 +75,7 @@ void toggleLED(){
 
 
 
-
+bool camera_ok = false;
 
 void setup() {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
@@ -119,10 +120,20 @@ void setup() {
   
   // Camera init
   
-  esp_err_t err = esp_camera_init(&config);
-  if (err != ESP_OK) {
-    Serial.printf("Camera init failed with error 0x%x", err);
-    return;
+   for (int i = 0; i < 3 && !camera_ok; i++) {
+    esp_err_t err = esp_camera_init(&config);
+    if (err == ESP_OK) {
+      camera_ok = true;
+    } else {
+      Serial.printf("Camera init failed with error 0x%x, retry %d\n", err, i);
+      delay(200);   // short pause, let rails settle
+      // optional: do a camera/I2C reset here (see below)
+    }
+  }
+
+  if (!camera_ok) {
+    Serial.println("Camera failed after retries, restarting...");
+    ESP.restart();    // last resort: full reset
   }
   
   /*

@@ -6,49 +6,6 @@
 static uint8_t bandBuf[320 * 120];  // 38,400 bytes in internal RAM
 
 
-#define CAMERA_MODEL_AI_THINKER
-
-
-void startCamera() {
-  camera_config_t config;
-  config.ledc_channel = LEDC_CHANNEL_0;
-  config.ledc_timer   = LEDC_TIMER_0;
-  config.pin_d0       = 5;   //Y2_GPIO_NUM;
-  config.pin_d1       = 18; //Y3_GPIO_NUM;
-  config.pin_d2       = 19; //Y4_GPIO_NUM;
-  config.pin_d3       = 21; //Y5_GPIO_NUM;
-  config.pin_d4       = 36; //Y6_GPIO_NUM;
-  config.pin_d5       = 39; //Y7_GPIO_NUM;
-  config.pin_d6       = 34; //Y8_GPIO_NUM;
-  config.pin_d7       = 35; //Y9_GPIO_NUM;
-  config.pin_xclk     = 0; //CLK_GPIO_NUM;
-  config.pin_pclk     = 22; //PCLK_GPIO_NUM;
-  config.pin_vsync    = 25; //VSYNC_GPIO_NUM;
-  config.pin_href     = 23; //HREF_GPIO_NUM;
-  config.pin_sscb_sda = 26; //SIOD_GPIO_NUM;
-  config.pin_sscb_scl = 27; //SIOC_GPIO_NUM;
-  config.pin_pwdn     = 32; //PWDN_GPIO_NUM;
-  config.pin_reset    = -1; //RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
-
-  config.frame_size   = FRAMESIZE_QVGA;      // 320x240 if this i changed edit linedetect out array
-  config.pixel_format = PIXFORMAT_GRAYSCALE; // 1 byte per pixel[web:16][web:17]
-  config.grab_mode    = CAMERA_GRAB_LATEST;
-  config.fb_location  = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 15;                  // JPEG quality used later
-  config.fb_count     = 1;
-  bool cameraNotDetected = true;
-  while(cameraNotDetected){
-    esp_err_t err = esp_camera_init(&config);
-    if (err == ESP_OK) {
-      cameraNotDetected = false;
-      
-    }
-    Serial.printf("Camera init failed 0x%x\n", err);
-    delay(50);
-  }
-}
-
 void processGrayscale(camera_fb_t *fb) {
   uint8_t* img = fb->buf;
   int w = fb->width;
