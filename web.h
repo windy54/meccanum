@@ -37,6 +37,7 @@ void addLineCentre(int value) {
   // Serialize back to String
   mecmode = "";
   serializeJson(doc, mecmode);
+  //Serial.println(mecmode);
 }
 
  /*
@@ -276,10 +277,14 @@ static esp_err_t stream_handler(httpd_req_t *req){
           char lbuf[5];
           
           lineCentre = fb->width/2 - detectLineEdges(fb);
+          lineCentre = -123;
           addLineCentre(lineCentre);
+          //Serial.print(lineCentre);
           sprintf(lbuf,"j%d\n",lineCentre);
-          //Serial.print(lbuf);
-          picoSerial.println(lbuf);
+          //Serial.print(" ");
+          //Serial.println(lbuf);
+          picoSerial.print(lbuf);
+          
         }
       if (fb->format != PIXFORMAT_JPEG) {
         // Non‑JPEG: convert

@@ -3,6 +3,9 @@
   Complete instructions at https://RandomNerdTutorials.com/esp32-cam-projects-ebook/
   Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files.
   The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+
+board type :AI Thinker ESP32-cam Minimal spiffs with ota
 *********/
 
 #include "esp_camera.h"
@@ -164,7 +167,7 @@ void loop() {
   unsigned long currentMillis=millis();
   if (currentMillis - previousMillis >= 100) // check for data at 10Hz
   {
-    previousMillis = currentMillis;
+    picoSerial.print("j123\n");previousMillis = currentMillis;
     if (picoSerial.available()) {
       // Read data and display it
       String message = picoSerial.readStringUntil('\n');
