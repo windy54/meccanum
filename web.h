@@ -14,12 +14,28 @@ static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" 
 static const char* _STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
 static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
 
+StaticJsonDocument<128> picoCmds;
+
+
 httpd_handle_t camera_httpd = NULL;
 httpd_handle_t stream_httpd = NULL;
 
 bool rawMode = true;
 int lineCentre= 0;
 
+void initPicoCmds(){
+  picoCmds["command"] = "stop";
+  picoCmds["args"] = 0;
+}
+void sendPicoCmd(String cmd, int arg1){
+  String jsonStr;
+  picoCmds["command"] = cmd;
+  picoCmds["args"] = arg1;
+  serializeJson( picoCmds, jsonStr);
+  picoSerial.println(jsonStr);
+  //Serial.println(jsonStr);
+  
+}
 void addLineCentre(int value) {
   StaticJsonDocument<128> doc;
 
@@ -98,32 +114,34 @@ static esp_err_t cmd_handler(httpd_req_t *req){
   if(!strcmp(variable, "forward")) {
     Serial.println("Forward");
     toggleLED();
-    picoSerial.println("f\n");
+    sendPicoCmd("forwards",0);
   }
   else if(!strcmp(variable, "left")) {
     //Serial.println("Left");
     toggleLED();
-    picoSerial.println("l\n");
+    sendPicoCmd("left",0);
+    
   }
   else if(!strcmp(variable, "right")) {
     //Serial.println("Right");
     toggleLED();
-    picoSerial.println("r\n");
+    sendPicoCmd("right",0);
+    
   }
   else if(!strcmp(variable, "backward")) {
     //Serial.println("Backward");
     toggleLED();
-    picoSerial.println("b\n");
+    sendPicoCmd("back",0);
   }
   else if(!strcmp(variable, "stop")) {
     //Serial.println("Stop");
     toggleLED();
-    picoSerial.println("s\n");
+    sendPicoCmd("stop",0);
   }
   else if(!strcmp(variable, "auto")) {
     //Serial.println("Auto");
     toggleLED();
-    picoSerial.println("a\n");
+    sendPicoCmd("auto",0);
   }
   else if(!strcmp(variable, "video")) {
     rawMode = !rawMode;
@@ -238,6 +256,7 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
 
   // Now keep the connection open and push when mecmode changes
   while (true) {
+    Serial.print(mecmode);
     if (mecmode != lastMecmodeSent) {
       lastMecmodeSent = mecmode;
       String msg = "data: " + mecmode + "\n\n";
@@ -277,13 +296,7 @@ static esp_err_t stream_handler(httpd_req_t *req){
           char lbuf[5];
           
           lineCentre = fb->width/2 - detectLineEdges(fb);
-          lineCentre = -123;
-          addLineCentre(lineCentre);
-          //Serial.print(lineCentre);
-          sprintf(lbuf,"j%d\n",lineCentre);
-          //Serial.print(" ");
-          //Serial.println(lbuf);
-          picoSerial.print(lbuf);
+          sendPicoCmd("line",lineCentre);
           
         }
       if (fb->format != PIXFORMAT_JPEG) {

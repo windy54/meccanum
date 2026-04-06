@@ -26,13 +26,13 @@ board type :AI Thinker ESP32-cam Minimal spiffs with ota
 
 
 extern String mecmode;
-
+void initPicoCmds();
 
 // Define the RX and TX pins for Serial 2
 #define RXD2 12
 #define TXD2 13
 
-#define PICO_BAUD 9600
+#define PICO_BAUD 19200
 
 unsigned long previousMillis = 0;
 bool ledState = 0;
@@ -121,6 +121,7 @@ void setup() {
   config.jpeg_quality = 15;                  // JPEG quality used later
   config.fb_count     = 1;
   
+  
   // Camera init
   
    for (int i = 0; i < 3 && !camera_ok; i++) {
@@ -138,7 +139,11 @@ void setup() {
     Serial.println("Camera failed after retries, restarting...");
     ESP.restart();    // last resort: full reset
   }
-  
+  // now flip image
+  sensor_t * s = esp_camera_sensor_get();
+  s->set_vflip(s, 1);   // 1 = enable vertical flip, 0 = disable
+  // s->set_hmirror(s, 1); // optional horizontal mirror
+
   /*
    * // Wi-Fi connection
   WiFi.begin(ssid, password);
@@ -159,6 +164,7 @@ void setup() {
   
   // Start streaming web server
   startCameraServer();
+  initPicoCmds();
 }
 
 void loop() {
@@ -167,7 +173,9 @@ void loop() {
   unsigned long currentMillis=millis();
   if (currentMillis - previousMillis >= 100) // check for data at 10Hz
   {
-    picoSerial.print("j123\n");previousMillis = currentMillis;
+    
+    previousMillis = currentMillis;
+    //sendPicoCmd("forwards",0);
     if (picoSerial.available()) {
       // Read data and display it
       String message = picoSerial.readStringUntil('\n');
@@ -176,6 +184,7 @@ void loop() {
       digitalWrite(ledFlash, ledFlashState);
       // need to decode message
       if (message !="")mecmode = message;
+      //picoSerial.println("got you");
       
       
     }
