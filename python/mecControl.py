@@ -4,12 +4,11 @@ from pimoroni import Analog, AnalogMux, Button
 from motor import motor2040 # for access tosensors on motor2040 board
 from plasma import WS2812 # for on board led control
 from hcsro4 import HCSR04 # range finder
-from machine import UART, Pin  # serial
+from machine import  Pin  # serial
 from mecRobot import Meccanum  # motor control
 import json # communication with esp32-cam
-uart = UART(0, baudrate=9600, tx=Pin(16), rx=Pin(17))
-uart.init(bits=8, parity=None, stop=2)
-
+from easy_comms import Easy_comms
+import _thread
 
 frontSonar = HCSR04(trigger_pin=21, echo_pin=20, echo_timeout_us=10000)
 myRobot = Meccanum()
@@ -20,8 +19,72 @@ UPDATE_RATE = 1 / UPDATES
 TIME_FOR_EACH_MOVE = 2                  # The time to travel between each value
 UPDATES_PER_MOVE = TIME_FOR_EACH_MOVE * UPDATES
 PRINT_DIVIDER = 4                       # How many of the updates should be printed (i.e. 2 would be every other update)
+'''
+queue defintions
+'''
+def core1_task(_):
+    rx_buf = ""
+
+    while True:
+        if status_queue:
+            s = q_get(status_queue, status_lock)
+            if s is not None:
+                comms.send(s)
+
+        data = comms.read_available()
+        if data:
+            rx_buf += data
+            while '\n' in rx_buf:
+                line, rx_buf = rx_buf.split('\n', 1)
+                line = line.strip()
+                if line:
+                    q_put(cmd_queue, cmd_lock, line)
+
+        time.sleep_ms(1)
 
 
+
+def q_get_nowait(q, lock):
+    if lock.acquire(False):          # try to take lock, but don’t block
+        try:
+            if q:
+                return q.pop(0)
+            else:
+                return None
+        finally:
+            lock.release()
+    else:
+        # someone else is using the queue; treat as empty for now
+        return None
+
+def q_put(q, lock, item):
+    while True:
+        if lock.acquire(False):
+            q.append(item)
+            lock.release()
+            return
+        time.sleep_ms(1)
+
+def q_get(q, lock):
+    while True:
+        if lock.acquire(False):
+            if q:
+                item = q.pop(0)
+                lock.release()
+                return item
+            lock.release()
+        time.sleep_ms(1)
+
+
+cmd_queue = []
+status_queue = []
+cmd_lock = _thread.allocate_lock()
+status_lock = _thread.allocate_lock()
+#
+comms = Easy_comms(0, 19200, txPin=16, rxPin=17)
+_thread.start_new_thread(core1_task, (None,))
+'''
+'''
 # monitoring
 sen_adc = Analog(motor2040.SHARED_ADC)
 vol_adc = Analog(motor2040.SHARED_ADC, motor2040.VOLTAGE_GAIN)
@@ -119,7 +182,11 @@ UPDATE_RATE_MSECS = 1000 * UPDATE_RATE
 led.set_rgb(0, 255, 0, 0)
 
 print("go")
+led.set_rgb(0, 255, 255, 255)
+time.sleep(1)
 myRobot.stop()
+led.set_rgb(0, 255, 0, 0)
+time.sleep(1)
 cmode = "s"
 modeSTR = {
     "status" : cmode,
@@ -129,61 +196,10 @@ modeSTR = {
     }
 def sendMode(mode):
     jsonmode=json.dumps(mode)
-    uart.write(jsonmode)
-    uart.write("\n")
+    q_put(status_queue, status_lock, jsonmode)
     #print(jsonmode)
 
-def decodeUartdata(cmode):
-    if uart.any(): # update mode if received a comman
-        data = uart.readline()
-        print(data[0])
-        if data[0]==  102: # f
-            cmode = "f"
-            r, g, b = colours[cmode]
-            myRobot.drive_forward(1.0)
-            modeSTR["status"]= cmode
-            sendMode(modeSTR)
-            #print(modeSTR)
-        elif data[0]== 98: #b
-            cmode= "b"
-            r, g, b = colours[cmode]
-            myRobot.drive_forward(-1.0)
-            modeSTR["status"]= cmode
-            #print(modeSTR)
-            sendMode(modeSTR)
-        elif data[0]== 108: #l
-            cmode ="l"
-            r, g, b = colours[cmode]
-            modeSTR["status"]= cmode
-            #print(modeSTR)
-            myRobot.turn_left(1.0)
-            sendMode(modeSTR)
-        elif data[0]== 114: #r
-            cmode = "r"
-            r, g, b = colours[cmode]
-            myRobot.turn_right(1.0)
-            modeSTR["status"]= cmode
-            #print(modeSTR)
-            sendMode(modeSTR)
-        elif data[0]== 115: #s
-            cmode ="s"
-            r, g, b = colours[cmode]
-            modeSTR["status"]= cmode
-            #print(modeSTR)
-            myRobot.stop()
-            sendMode(modeSTR)
-        elif data[0] == 97: #a
-            cmode= "a"
-            r, g, b = colours[cmode]
-            mode = 1
-            myRobot.drive_forward(1.0)
-            mode =switch_mode_dict(mode)(frontDistance)
-            modeSTR["status"]= cmode
-            modeSTR["autostatus"]= "??"
-            #print(modeSTR)
-            sendMode(modeSTR)
-            
-    return cmode
+
             
 oldcmode= "s"  #mode received over serial link
 # Continually move the motor until the user button is pressed
@@ -198,15 +214,58 @@ ledFlashCount = 0
 ledFlashMax = 100
 rangeCount = 0
 myRobot.enable()
-
+led.set_rgb(0, 0, 255, 0)
+time.sleep(1)
 while not user_sw.raw():
     timeStart = time.ticks_ms()
+    # get new command
+    cmd = q_get_nowait(cmd_queue, cmd_lock)
+    #print(f'message: {cmd}')
+    if cmd is not None :
+        #print(f'message: {cmd}')
+        try:
+            command = json.loads(cmd)
+            #print(f'json: {command}')
+            if command['command'] == 'forwards':
+                cmode = "f"
+                #print(cmode)
+                r, g, b = colours[cmode]
+                myRobot.drive_forward(1.0)
+            elif command['command'] == 'left':
+                cmode = "l"
+                r, g, b = colours[cmode]
+                myRobot.turn_left(1.0)
+            elif command['command'] == 'right':
+                cmode = "r"
+                r, g, b = colours[cmode]
+                myRobot.turn_right(1.0)
+            elif command['command'] == 'back':
+                cmode = "b"
+                r, g, b = colours[cmode]
+                myRobot.drive_forward(-1.0)
+            elif command['command'] == 'stop':
+                cmode = "s"
+                r, g, b = colours[cmode]
+                myRobot.drive_forward(0)
+            elif command['command'] == 'auto':
+                cmode = "a"
+                r, g, b = colours[cmode]
+                mode = 1
+                myRobot.drive_forward(1.0)
+                mode =switch_mode_dict(mode)(frontDistance)
+            elif command['command'] == 'line':
+                cmode = "li"
+            
+            time.sleep(0.1)
+        except Exception as e:
+            print(f'error: {e} {cmd}')
+            print("xx")
+            
     frontDistance = frontSonar.distance_cm()
     rangeCount+=1
     if rangeCount > 50:
         rangeCount=0
-        rangeSTR = str(round(frontDistance, 1)) + " " + cmode + str(mode) + " \n"
-        #print(rangeSTR)
+        
         modeSTR["range"] =frontDistance
         #print(modeSTR)
        
@@ -230,8 +289,7 @@ while not user_sw.raw():
         modeSTR["volts"] = volts
         sendMode(modeSTR)
 
-    cmode = decodeUartdata(cmode)
-    #print(cmode)
+    
     if cmode == "a":
         mode =switch_mode_dict(mode)(frontDistance)
     elif cmode == "f":
@@ -255,6 +313,7 @@ while not user_sw.raw():
     timeSlots[intTime]+=1
     delayTime = int(UPDATE_RATE_MSECS - iterTime)
     if delayTime > 0 :
+        #print(delayTime)
         time.sleep_ms(delayTime)
 #print("stop")    
 myRobot.disable()
